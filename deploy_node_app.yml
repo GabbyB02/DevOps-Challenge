@@ -1,0 +1,57 @@
+---
+- name: Set up and deploy Node.js application
+  hosts: app_servers
+  become: yes
+
+  tasks:
+    - name: Update and install dependencies
+      apt:
+        update_cache: yes
+        name: "{{ item }}"
+        state: present
+      loop:
+        - curl
+        - software-properties-common
+
+    - name: Add Node.js PPA
+      command: curl -sL https://deb.nodesource.com/setup_14.x | bash -
+
+    - name: Install Node.js
+      apt:
+        name: nodejs
+        state: present
+
+    - name: Copy application files to server
+      copy:
+        src: "C:/Users/gmmba/OneDrive/Desktop/Terraform/Chat-App-using-Socket.io-master/public/js"
+        dest: /home/ec2-user/app/
+        owner: ec2-user
+        group: ec2-user
+        mode: '0755'
+      
+    - name: Install application dependencies
+      command: npm install
+      args:
+        chdir: /home/ec2-user/app
+
+    - name: Configure the application to run with PM2 (Process Manager)
+      npm:
+        name: pm2
+        global: yes
+
+    - name: Start the application with PM2
+      command: pm2 start app.js --name "node_app"
+      args:
+        chdir: /home/ec2-user/app
+
+    - name: Configure PM2 to auto-start on reboot
+      command: pm2 startup systemd -u ec2-user --hp /home/ec2-user
+
+    - name: Save the PM2 process list
+      command: pm2 save
+
+    - name: Enable and start PM2 systemd service
+      systemd:
+        name: pm2-ec2-user
+        enabled: yes
+        state: started
